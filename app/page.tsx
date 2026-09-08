@@ -1,69 +1,618 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+type Status = "playing" | "problem" | "idle";
+
+type PlayerStatus = {
+  name: string;
+  status: Status;
+};
+
+type ScheduleDay = {
+  date: string;
+  weekNumber: number;
+  dayLabel: string;
+  displayDate: string;
+  players: PlayerStatus[];
+};
+
+type SeasonMeta = {
+  players: string[];
+  joker: string | null;
+  playersPerDay: number;
+  seasonLabel: string;
+  title: string;
+  subtitle: string;
+  location: string;
+  startTime: string;
+};
+
+const DEFAULT_META: SeasonMeta = {
+  players: ["Sjoerd", "Sebas", "Robert", "Danny", "Jelmer", "Michel", "Wouter"],
+  joker: "Wouter",
+  playersPerDay: 4,
+  seasonLabel: "Winter competitie",
+  title: "Blaashal 2026/2027",
+  subtitle: "donderdag 21:00 · baan 5",
+  location: "Baan 5, T.C. Domstad",
+  startTime: "21:00",
+};
+
+function formatDateLabel(date: string) {
+  const [year, month, day] = date.split("-").map(Number);
+  return `${String(day).padStart(2, "0")}-${String(month).padStart(2, "0")}-${year}`;
+}
+
+function formatWeekday(date: string) {
+  const value = new Date(`${date}T12:00:00`);
+  return new Intl.DateTimeFormat("nl-NL", { weekday: "long" }).format(value);
+}
+
+function pad(value: number) {
+  return String(value).padStart(2, "0");
+}
+
+function toIcsDate(date: Date) {
+  return `${date.getUTCFullYear()}${pad(date.getUTCMonth() + 1)}${pad(date.getUTCDate())}T${pad(date.getUTCHours())}${pad(date.getUTCMinutes())}${pad(date.getUTCSeconds())}Z`;
+}
+
+function toIcsLocalTime(date: Date) {
+  return `${pad(date.getHours())}${pad(date.getMinutes())}00`;
+}
+
+function CalendarExportIcon({ className }: { className?: string }) {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <rect x="3" y="4" width="18" height="17" rx="2" />
+      <line x1="16" y1="2" x2="16" y2="6" />
+      <line x1="8" y1="2" x2="8" y2="6" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+      <path d="M12 13v5" />
+      <path d="m9.5 15.5 2.5 2.5 2.5-2.5" />
+    </svg>
+  );
+}
+
+function TableExportIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <rect x="3" y="3" width="18" height="13" rx="1.5" />
+      <line x1="3" y1="8.5" x2="21" y2="8.5" />
+      <line x1="9" y1="3" x2="9" y2="16" />
+      <line x1="15" y1="3" x2="15" y2="16" />
+      <path d="M12 17v4" />
+      <path d="m9.5 19 2.5 2 2.5-2" />
+    </svg>
+  );
+}
+
+async function buildAndDownloadScheduleExcel(schedule: ScheduleDay[], meta: SeasonMeta) {
+  const ExcelJS = (await import("exceljs")).default;
+
+  const players = meta.players;
+  const corePlayerCount = meta.joker ? players.length - 1 : players.length;
+  const columns = ["Wk", "Datum", "Dag", ...players];
+  const lastCol = columns.length;
+
+  const RED = "FFC8102E";
+  const BLACK = "FF1B1B1F";
+  const GREEN = "FF1E8F5F";
+  const GRAY_CELL = "FFF1F2F4";
+  const ROW_ALT = "FFFBF7F2";
+  const WHITE = "FFFFFFFF";
+  const DARK_RED = "FF8C0B20";
+  const FOOTNOTE_GRAY = "FF6B6F76";
+  const BORDER_COLOR = "FFD8DAE0";
+  const thinBorder = { style: "thin" as const, color: { argb: BORDER_COLOR } };
+  const allBorders = { top: thinBorder, left: thinBorder, bottom: thinBorder, right: thinBorder };
+
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("Schema", {
+    views: [{ state: "frozen", xSplit: 3, ySplit: 4, showGridLines: false }],
+  });
+
+  sheet.columns = columns.map((_, index) =>
+    index === 0 ? { width: 6 } : index === 1 ? { width: 13 } : index === 2 ? { width: 12 } : {},
+  );
+
+  sheet.mergeCells(1, 1, 1, lastCol);
+  const titleCell = sheet.getCell(1, 1);
+  titleCell.value = `T.C. Domstad — ${meta.title}`;
+  titleCell.font = { name: "Calibri", size: 18, bold: true, color: { argb: WHITE } };
+  titleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: RED } };
+  titleCell.alignment = { horizontal: "center", vertical: "middle" };
+  sheet.getRow(1).height = 30;
+
+  sheet.mergeCells(2, 1, 2, lastCol);
+  const subtitleCell = sheet.getCell(2, 1);
+  subtitleCell.value = meta.subtitle;
+  subtitleCell.font = { name: "Calibri", size: 11, color: { argb: WHITE } };
+  subtitleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: RED } };
+  subtitleCell.alignment = { horizontal: "center", vertical: "middle" };
+  sheet.getRow(2).height = 19.5;
+
+  sheet.getRow(3).height = 6;
+
+  const headerRow = sheet.getRow(4);
+  headerRow.height = 21.75;
+  columns.forEach((label, index) => {
+    const cell = headerRow.getCell(index + 1);
+    cell.value = label;
+    cell.font = { name: "Calibri", size: 11, bold: true, color: { argb: WHITE } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: BLACK } };
+    cell.alignment = { horizontal: "center", vertical: "middle" };
+    cell.border = allBorders;
+  });
+
+  schedule.forEach((day, dayIndex) => {
+    const row = sheet.getRow(5 + dayIndex);
+    const rowFill = dayIndex % 2 === 0 ? WHITE : ROW_ALT;
+
+    const wkCell = row.getCell(1);
+    wkCell.value = day.weekNumber;
+    const dateCell = row.getCell(2);
+    dateCell.value = new Date(`${day.date}T12:00:00`);
+    dateCell.numFmt = "dd\\-mm\\-yyyy";
+    const dayCell = row.getCell(3);
+    dayCell.value = formatWeekday(day.date);
+
+    [wkCell, dateCell, dayCell].forEach((cell, index) => {
+      cell.font = { name: "Calibri", size: 10.5, bold: index < 2, color: { argb: BLACK } };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: rowFill } };
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+      cell.border = allBorders;
+    });
+
+    players.forEach((name, playerIndex) => {
+      const cell = row.getCell(4 + playerIndex);
+      const isPlaying = day.players.some((member) => member.name === name && member.status === "playing");
+      cell.value = isPlaying ? "speelt" : null;
+      cell.font = { name: "Calibri", size: 11, bold: true, color: { argb: WHITE } };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: isPlaying ? GREEN : GRAY_CELL } };
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+      cell.border = allBorders;
+    });
+  });
+
+  const totalsRowIndex = 5 + schedule.length;
+  const totalsRow = sheet.getRow(totalsRowIndex);
+  totalsRow.height = 21.75;
+  sheet.mergeCells(totalsRowIndex, 1, totalsRowIndex, 3);
+  const totalsLabelCell = totalsRow.getCell(1);
+  totalsLabelCell.value = "Totaal speeldagen";
+  totalsLabelCell.font = { name: "Calibri", size: 11, bold: true, color: { argb: WHITE } };
+  totalsLabelCell.alignment = { horizontal: "right", vertical: "middle" };
+  for (let col = 1; col <= 3; col += 1) {
+    const cell = totalsRow.getCell(col);
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: DARK_RED } };
+    cell.border = allBorders;
+  }
+
+  players.forEach((name, playerIndex) => {
+    const cell = totalsRow.getCell(4 + playerIndex);
+    cell.value = schedule.filter((day) =>
+      day.players.some((member) => member.name === name && member.status === "playing"),
+    ).length;
+    cell.font = { name: "Calibri", size: 11, bold: true, color: { argb: WHITE } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: DARK_RED } };
+    cell.alignment = { horizontal: "center", vertical: "middle" };
+    cell.border = allBorders;
+  });
+
+  const weekdayLabel = schedule.length > 0 ? formatWeekday(schedule[0].date) : "";
+
+  const footnoteRow1 = totalsRowIndex + 2;
+  sheet.mergeCells(footnoteRow1, 1, footnoteRow1, lastCol);
+  sheet.getCell(footnoteRow1, 1).value =
+    `Elke ${weekdayLabel} om ${meta.startTime} uur speelt dit team op ${meta.location} ` +
+    `(${meta.playersPerDay} van de ${corePlayerCount} spelers per week).`;
+  sheet.getCell(footnoteRow1, 1).font = { name: "Calibri", size: 9.5, color: { argb: FOOTNOTE_GRAY } };
+
+  const footnoteRow2 = footnoteRow1 + 1;
+  sheet.mergeCells(footnoteRow2, 1, footnoteRow2, lastCol);
+  const now = new Date();
+  const exportedAt = `${formatDateLabel(now.toISOString().slice(0, 10))} om ${pad(now.getHours())}:${pad(now.getMinutes())} uur`;
+  sheet.getCell(footnoteRow2, 1).value = `Live export vanuit het beschikbaarheidsbord — gegenereerd op ${exportedAt}.`;
+  sheet.getCell(footnoteRow2, 1).font = { name: "Calibri", size: 9.5, color: { argb: FOOTNOTE_GRAY } };
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `tc-domstad-schema-${now.toISOString().slice(0, 10)}.xlsx`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  URL.revokeObjectURL(url);
+}
+
+function buildAgendaFile(player: string, schedule: ScheduleDay[], meta: SeasonMeta) {
+  const events = schedule
+    .filter((day) => day.players.some((member) => member.name === player && member.status === "playing"))
+    .map((day) => {
+      const start = new Date(`${day.date}T${meta.startTime}:00`);
+      const end = new Date(start.getTime() + 60 * 60 * 1000);
+      const compactDate = day.date.replace(/-/g, "");
+
+      return [
+        "BEGIN:VEVENT",
+        `UID:${day.date}-${player}@tcdomstad`,
+        `DTSTAMP:${toIcsDate(new Date())}`,
+        `DTSTART;TZID=Europe/Amsterdam:${compactDate}T${toIcsLocalTime(start)}`,
+        `DTEND;TZID=Europe/Amsterdam:${compactDate}T${toIcsLocalTime(end)}`,
+        `SUMMARY:T.C. Domstad — ${meta.title} - ${player}`,
+        `DESCRIPTION:Speelavond ${meta.title}`,
+        `LOCATION:${meta.location}`,
+        "END:VEVENT",
+      ].join("\r\n");
+    })
+    .join("\r\n");
+
+  return [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//T.C. Domstad//Availability Board//NL",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    events,
+    "END:VCALENDAR",
+  ].join("\r\n");
+}
+
+export default function HomePage() {
+  const [schedule, setSchedule] = useState<ScheduleDay[]>([]);
+  const [meta, setMeta] = useState<SeasonMeta>(DEFAULT_META);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const getSchedule = useCallback(async () => {
+    try {
+      const response = await fetch("/api/schedule", { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error("schedule request failed");
+      }
+
+      const payload = await response.json();
+      setSchedule(payload.schedule ?? []);
+      setMeta({
+        players: payload.players ?? DEFAULT_META.players,
+        joker: payload.joker ?? null,
+        playersPerDay: payload.playersPerDay ?? DEFAULT_META.playersPerDay,
+        seasonLabel: payload.seasonLabel ?? DEFAULT_META.seasonLabel,
+        title: payload.title ?? DEFAULT_META.title,
+        subtitle: payload.subtitle ?? DEFAULT_META.subtitle,
+        location: payload.location ?? DEFAULT_META.location,
+        startTime: payload.startTime ?? DEFAULT_META.startTime,
+      });
+    } catch (error) {
+      console.error(error);
+      setSchedule([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void getSchedule();
+    const interval = window.setInterval(() => {
+      void getSchedule();
+    }, 5000);
+
+    return () => window.clearInterval(interval);
+  }, [getSchedule]);
+
+  const handleStatusChange = async (date: string, player: string, status: Status) => {
+    await fetch("/api/status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date, player, status }),
+    });
+
+    await getSchedule();
+  };
+
+  const completeDays = useMemo(
+    () =>
+      schedule.filter((day) => day.players.filter((player) => player.status === "playing").length >= meta.playersPerDay)
+        .length,
+    [schedule, meta.playersPerDay],
+  );
+
+  const incompleteDays = useMemo(
+    () =>
+      schedule.filter((day) => day.players.filter((player) => player.status === "playing").length < meta.playersPerDay),
+    [schedule, meta.playersPerDay],
+  );
+
+  const playerDayCounts = useMemo(() => {
+    const countFor = (name: string) =>
+      schedule.filter((day) => day.players.some((member) => member.name === name && member.status === "playing"))
+        .length;
+
+    const corePlayers = meta.joker ? meta.players.filter((name) => name !== meta.joker) : meta.players;
+    const counts = corePlayers.map((name) => ({ name, count: countFor(name) }));
+
+    if (meta.joker) {
+      const jokerCount = countFor(meta.joker);
+      if (jokerCount > 0) {
+        counts.push({ name: meta.joker, count: jokerCount });
+      }
+    }
+
+    return counts;
+  }, [schedule, meta.players, meta.joker]);
+
+  const handleJumpToDay = (date: string) => {
+    const element = document.getElementById(date);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  };
+
+  const handleExportAgenda = (player: string) => {
+    const calendar = buildAgendaFile(player, schedule, meta);
+    const blob = new Blob([calendar], { type: "text/calendar;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `tc-domstad-blaashal-${player.toLowerCase()}.ics`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportExcel = () => {
+    void buildAndDownloadScheduleExcel(schedule, meta);
+  };
+
+  const renderPlayer = (day: ScheduleDay, player: PlayerStatus) => {
+    const isPlaying = player.status === "playing";
+    const isProblem = player.status === "problem";
+    const playingCount = day.players.filter((member) => member.status === "playing").length;
+    const isLocked = !isPlaying && playingCount >= meta.playersPerDay;
+
+    const chipStyle = isPlaying
+      ? "border-emerald-300 bg-emerald-100 text-emerald-900 hover:bg-emerald-200"
+      : isProblem
+        ? "border-red-300 bg-red-100 text-red-900 hover:bg-red-200"
+        : isLocked
+          ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
+          : "border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200";
+
+    const handleToggle = () => {
+      if (isLocked) {
+        return;
+      }
+
+      const nextStatus: Status = isPlaying ? "problem" : "playing";
+      const confirmed = window.confirm("Je past je beschikbaarheid aan, weet je het zeker?");
+
+      if (!confirmed) {
+        return;
+      }
+
+      void handleStatusChange(day.date, player.name, nextStatus);
+    };
+
+    return (
+      <button
+        key={`${day.date}-${player.name}`}
+        type="button"
+        className={`flex w-full min-w-0 items-center gap-2 rounded-full border px-2.5 py-1.5 text-left text-sm font-medium shadow-sm transition-all ${chipStyle}`}
+        onClick={handleToggle}
+        disabled={isLocked}
+        aria-label={`${player.name} ${player.status}`}
+        title={isLocked ? `Er spelen al ${meta.playersPerDay} spelers deze avond` : undefined}
+      >
+        <span className="text-[0.7rem] font-bold">
+          {player.status === "playing" ? "✓" : player.status === "problem" ? "✕" : "○"}
+        </span>
+        <span className="truncate">{player.name}</span>
+      </button>
+    );
+  };
+
+  return (
+    <main className="min-h-screen bg-[#f5f3ef] text-[#1b1b1b]">
+      <div className="mx-auto max-w-6xl px-4 py-5 sm:px-6 lg:px-8">
+        <header className="mb-5 overflow-hidden rounded-2xl border border-[#1d1d1b] bg-[#1d1d1b] shadow-[0_10px_20px_rgba(17,17,17,0.15)]">
+          <div className="flex items-center gap-4 p-4">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/domstad-logo.svg" alt="T.C. Domstad" className="h-9 w-auto shrink-0 sm:h-11" />
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#e40520]">
+                {meta.seasonLabel}
+              </p>
+              <h1 className="mt-1 text-2xl font-black tracking-tight text-white sm:text-3xl">{meta.title}</h1>
+              <p className="mt-1 text-sm text-white/70">{meta.subtitle}</p>
+            </div>
+          </div>
+          <div className="h-1.5 w-full bg-[#e40520]" />
+        </header>
+
+        <div
+          className={`mb-5 rounded-2xl border p-4 shadow-sm transition ${
+            incompleteDays.length > 0 ? "border-red-300 bg-red-50/60" : "border-[#e6ddd4] bg-white"
+          }`}
+        >
+          <div className="mb-3 text-sm font-semibold uppercase tracking-[0.14em] text-[#6b6b6b]">Status</div>
+
+          <div className="mb-3 grid grid-cols-2 gap-3">
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+              <div className="text-2xl font-black text-emerald-700">{completeDays}</div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-emerald-700/80">
+                Compleet
+              </div>
+            </div>
+            <div
+              className={`rounded-xl border px-4 py-3 ${
+                incompleteDays.length > 0
+                  ? "border-red-400 bg-red-100"
+                  : "border-slate-200 bg-slate-50"
+              }`}
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+              <div
+                className={`text-2xl font-black ${
+                  incompleteDays.length > 0 ? "text-red-700" : "text-slate-500"
+                }`}
+              >
+                {incompleteDays.length}
+              </div>
+              <div
+                className={`text-xs font-semibold uppercase tracking-wide ${
+                  incompleteDays.length > 0 ? "text-red-700/80" : "text-slate-500"
+                }`}
+              >
+                Incompleet
+              </div>
+            </div>
+          </div>
+
+          {incompleteDays.length > 0 && (
+            <div className="mb-4">
+              <div className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-red-700">
+                <span aria-hidden="true">⚠</span> Actie nodig
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {incompleteDays.map((day) => (
+                  <button
+                    key={day.date}
+                    type="button"
+                    onClick={() => handleJumpToDay(day.date)}
+                    className="rounded-full border border-red-300 bg-white px-2.5 py-1 text-xs font-semibold text-red-700 shadow-sm transition hover:bg-red-50"
+                  >
+                    {formatDateLabel(day.date)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="border-t border-[#ece3da] pt-3">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#6b6b6b]">
+              Speeldagen per speler
+            </div>
+            <div className="grid gap-1.5 sm:grid-cols-2">
+              {playerDayCounts.map(({ name, count }) => (
+                <div
+                  key={name}
+                  className="flex items-center justify-between gap-2 rounded-xl border border-[#ece3da] bg-[#faf7f2] px-3 py-2"
+                >
+                  <div className="flex min-w-0 items-baseline gap-2">
+                    <span className="truncate text-sm font-semibold text-[#1d1d1b]">{name}</span>
+                    <span className="whitespace-nowrap text-xs text-[#8a8a8a]">{count} speeldagen</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleExportAgenda(name)}
+                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#1d1d1b] bg-white text-[#1d1d1b] transition hover:bg-[#1d1d1b] hover:text-white"
+                    aria-label={`Exporteer agenda voor ${name}`}
+                    title="Exporteer naar agenda"
+                  >
+                    <CalendarExportIcon className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={handleExportExcel}
+              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full border border-[#1d1d1b] bg-white px-3.5 py-2 text-sm font-semibold text-[#1d1d1b] shadow-sm transition hover:bg-[#1d1d1b] hover:text-white"
             >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+              <TableExportIcon className="h-4 w-4" />
+              Download schema (Excel)
+            </button>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+
+        {isLoading ? (
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div key={index} className="animate-pulse rounded-2xl border border-[#e9dfd5] bg-white p-4 shadow-sm">
+                <div className="mb-4 h-4 w-20 rounded bg-slate-200" />
+                <div className="mb-3 h-7 w-32 rounded bg-slate-200" />
+                <div className="space-y-2">
+                  {Array.from({ length: 6 }).map((__, chipIndex) => (
+                    <div key={chipIndex} className="h-9 rounded-full bg-slate-200" />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : !schedule.length ? (
+          <div className="rounded-2xl border border-dashed border-[#c9b6a4] bg-white p-8 text-center text-[#4a4a4a]">
+            Geen data beschikbaar
+          </div>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {schedule.map((day) => {
+              const greenCount = day.players.filter((player) => player.status === "playing").length;
+              const complete = greenCount >= meta.playersPerDay;
+              const needed = Math.max(0, meta.playersPerDay - greenCount);
+              const statusText = complete
+                ? `${meta.playersPerDay}/${meta.playersPerDay} compleet`
+                : `${greenCount}/${meta.playersPerDay} — nog ${needed} nodig`;
+
+              return (
+                <article
+                  id={day.date}
+                  key={day.date}
+                  className="overflow-hidden rounded-2xl border border-[#1d1d1b]/15 bg-white shadow-sm transition hover:shadow-md"
+                >
+                  <div className="bg-[#1d1d1b] px-4 py-3">
+                    <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#e40520]">
+                          Week {day.weekNumber}
+                        </p>
+                        <h2 className="mt-1 text-xl font-bold text-white">{formatDateLabel(day.date)}</h2>
+                        <p className="text-sm capitalize text-white/60">{formatWeekday(day.date)}</p>
+                      </div>
+                      <div
+                        className={`inline-flex shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-bold ${
+                          complete
+                            ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-300"
+                            : "border-red-400/40 bg-red-400/10 text-red-300"
+                        }`}
+                      >
+                        {statusText}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="h-1 w-full bg-[#e40520]" />
+
+                  <div className="grid gap-2 p-4">
+                    {day.players.map((player) => renderPlayer(day, player))}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </main>
   );
 }
