@@ -83,6 +83,27 @@ function CalendarExportIcon({ className }: { className?: string }) {
   );
 }
 
+function WhatsAppIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+    </svg>
+  );
+}
+
+function openWhatsAppShare(message: string) {
+  window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
+}
+
 function TableExportIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -370,6 +391,16 @@ export default function HomePage() {
     }
   };
 
+  const handleShareIncompleteDay = (day: ScheduleDay) => {
+    const greenCount = day.players.filter((player) => player.status === "playing").length;
+    const needed = Math.max(0, meta.playersPerDay - greenCount);
+    const boardUrl = window.location.origin;
+
+    openWhatsAppShare(
+      `⚠️ ${meta.title}: ${formatDateLabel(day.date)} is nog niet compleet (${greenCount}/${meta.playersPerDay} — nog ${needed} nodig). Wie kan?\n${boardUrl}`,
+    );
+  };
+
   const handleExportAgenda = (player: string) => {
     const calendar = buildAgendaFile(player, schedule, meta);
     const blob = new Blob([calendar], { type: "text/calendar;charset=utf-8" });
@@ -413,7 +444,24 @@ export default function HomePage() {
         return;
       }
 
-      void handleStatusChange(day.date, player.name, nextStatus);
+      void handleStatusChange(day.date, player.name, nextStatus).then(() => {
+        if (nextStatus !== "problem") {
+          return;
+        }
+
+        const remaining = playingCount - 1;
+        const needed = Math.max(0, meta.playersPerDay - remaining);
+        const sendMessage = window.confirm(
+          `${player.name} kan niet op ${formatDateLabel(day.date)} — nog ${needed} speler(s) nodig. WhatsApp-bericht sturen naar de groep?`,
+        );
+
+        if (sendMessage) {
+          const boardUrl = window.location.origin;
+          openWhatsAppShare(
+            `📋 ${meta.title}: ${player.name} kan niet op ${formatDateLabel(day.date)} (${remaining}/${meta.playersPerDay} — nog ${needed} nodig). Wie kan invallen?\n${boardUrl}`,
+          );
+        }
+      });
     };
 
     return (
@@ -497,14 +545,24 @@ export default function HomePage() {
               </div>
               <div className="flex flex-wrap gap-2">
                 {incompleteDays.map((day) => (
-                  <button
-                    key={day.date}
-                    type="button"
-                    onClick={() => handleJumpToDay(day.date)}
-                    className="rounded-full border border-red-300 bg-white px-2.5 py-1 text-xs font-semibold text-red-700 shadow-sm transition hover:bg-red-50"
-                  >
-                    {formatDateLabel(day.date)}
-                  </button>
+                  <div key={day.date} className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleJumpToDay(day.date)}
+                      className="rounded-full border border-red-300 bg-white px-2.5 py-1 text-xs font-semibold text-red-700 shadow-sm transition hover:bg-red-50"
+                    >
+                      {formatDateLabel(day.date)}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleShareIncompleteDay(day)}
+                      className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-emerald-300 bg-white text-emerald-600 shadow-sm transition hover:bg-emerald-50"
+                      aria-label={`WhatsApp-bericht voor ${formatDateLabel(day.date)}`}
+                      title="Stuur WhatsApp-bericht"
+                    >
+                      <WhatsAppIcon className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>
