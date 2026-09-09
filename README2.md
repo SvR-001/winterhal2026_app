@@ -10,7 +10,9 @@ Shared availability board for a T.C. Domstad competition team. It shows every pl
 - Joker/substitute player support, only togglable once the day is short-handed
 - Per-player `.ics` agenda export and a full-schedule `.xlsx` export (styled like the club's own format)
 - Polling refresh every 5 seconds
-- `/panel` admin tool (password-protected) to generate a brand-new season: date range, weekday, players, players-per-day, and holidays to skip
+- `/panel` admin tool (password-protected) to generate a brand-new season: date range, weekday, players, players-per-day, and holidays to skip, plus a "snel bewerken" form to fix the title/label/location/time without regenerating anything
+- One-click WhatsApp share (prefilled message, @mentioning whoever isn't playing yet) whenever a day is short-handed
+- Optional: an email to the organizer if a day is still short-handed 5 minutes after someone drops out (via Upstash QStash + Resend)
 - Upstash Redis support with local fallback in development
 
 ## Data model
@@ -38,6 +40,19 @@ Log in at `/panel/login` with `PANEL_PASSWORD`, then fill in the new season's da
 
 Auth uses a signed, httpOnly session cookie (via `jose`), checked both by `proxy.ts` (fast redirect) and again inside the Server Action itself (the actual authorization check).
 
+## "Still incomplete" email
+
+When a status change leaves a day short-handed, the app schedules a one-off delayed check via **Upstash QStash** (5 minutes later). That check re-reads the live board and, if the day is *still* short-handed, sends an email via **Resend** to `NOTIFY_EMAIL` — deduplicated so repeated toggles on the same day don't spam multiple emails within a 10-minute window.
+
+This is fully optional: without `QSTASH_TOKEN`/`RESEND_API_KEY`/etc. set, the board works exactly as before, it just skips scheduling the check.
+
+To set it up:
+
+1. **Resend**: create a free account at [resend.com](https://resend.com), grab an API key → `RESEND_API_KEY`. No domain verification needed to start (it sends from `onboarding@resend.dev`).
+2. **QStash**: in your existing Upstash account, open the QStash tab → copy the token (`QSTASH_TOKEN`) and the two signing keys (`QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY`) — the signing keys are how the webhook verifies a request genuinely came from QStash.
+3. Set `APP_BASE_URL` to your production URL (e.g. `https://winterhal2026-app.vercel.app`) — QStash needs a real public address to call back.
+4. Set `NOTIFY_EMAIL` to your own address, directly in Vercel/`.env.local` — there's no need to share it with anyone else to get this working.
+
 ## Local development
 
 ```bash
@@ -56,6 +71,7 @@ Then open http://localhost:3000. To use `/panel` locally, create a `.env.local` 
    - `KV_TOKEN`
    - `PANEL_PASSWORD`
    - `PANEL_SESSION_SECRET`
+   - (optional) `APP_BASE_URL`, `QSTASH_TOKEN`, `QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY`, `RESEND_API_KEY`, `NOTIFY_EMAIL` — see "Still incomplete" email below
 4. Use the default Next.js build settings.
 5. Deploy.
 

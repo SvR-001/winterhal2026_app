@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { getSeason, updatePlayerStatus, type Status } from "@/app/lib/schedule";
+import { scheduleIncompleteCheck } from "@/app/lib/notify";
+import { getSeason, getStatusMap, updatePlayerStatus, type Status } from "@/app/lib/schedule";
 
 const VALID_STATUSES = new Set<Status>(["playing", "problem", "idle"]);
 
@@ -36,6 +37,19 @@ export async function POST(request: Request) {
     }
 
     const result = await updatePlayerStatus(date, player, status as Status);
+
+    try {
+      const statusMap = await getStatusMap();
+      const playingCount = season.players.filter(
+        (teammate) => statusMap[`${date}|${teammate}`] === "playing",
+      ).length;
+
+      if (playingCount < season.playersPerDay) {
+        await scheduleIncompleteCheck(date);
+      }
+    } catch (notifyError) {
+      console.error("Failed to schedule incomplete-day check", notifyError);
+    }
 
     return NextResponse.json({ ok: true, date, player, status: result });
   } catch (error) {
