@@ -105,13 +105,15 @@ function openWhatsAppShare(message: string) {
 }
 
 function buildMentionLine(players: PlayerStatus[], excludeName?: string) {
-  const notPlaying = players.filter((player) => player.name !== excludeName && player.status !== "playing");
+  // Only tag players who haven't responded (idle) — someone already marked
+  // "kan niet" (problem/red) shouldn't be asked again.
+  const available = players.filter((player) => player.name !== excludeName && player.status === "idle");
 
-  if (notPlaying.length === 0) {
+  if (available.length === 0) {
     return "";
   }
 
-  const mentions = notPlaying.map((player) => `@${player.name}`).join(", ");
+  const mentions = available.map((player) => `@${player.name}`).join(", ");
   return ` ${mentions}, kan een van jullie?`;
 }
 
