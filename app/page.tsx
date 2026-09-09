@@ -503,11 +503,21 @@ export default function HomePage() {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/domstad-logo.svg" alt="T.C. Domstad" className="h-9 w-auto shrink-0 sm:h-11" />
             <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#e40520]">
-                {meta.seasonLabel}
-              </p>
-              <h1 className="mt-1 text-2xl font-black tracking-tight text-white sm:text-3xl">{meta.title}</h1>
-              <p className="mt-1 text-sm text-white/70">{meta.subtitle}</p>
+              {isLoading ? (
+                <div className="animate-pulse space-y-2 py-1">
+                  <div className="h-3 w-28 rounded bg-white/20" />
+                  <div className="h-6 w-48 rounded bg-white/20" />
+                  <div className="h-3 w-36 rounded bg-white/20" />
+                </div>
+              ) : (
+                <>
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#e40520]">
+                    {meta.seasonLabel}
+                  </p>
+                  <h1 className="mt-1 text-2xl font-black tracking-tight text-white sm:text-3xl">{meta.title}</h1>
+                  <p className="mt-1 text-sm text-white/70">{meta.subtitle}</p>
+                </>
+              )}
             </div>
           </div>
           <div className="h-1.5 w-full bg-[#e40520]" />
