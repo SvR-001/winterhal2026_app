@@ -7,11 +7,40 @@ import {
   generateFairRotation,
   generateSeason,
   saveSeason,
+  updateSeasonDetails,
   type GenerateSeasonInput,
   type Status,
 } from "@/app/lib/schedule";
 
 export type GenerateSeasonState = { error?: string } | undefined;
+export type UpdateDetailsState = { error?: string; success?: boolean } | undefined;
+
+export async function updateSeasonDetailsAction(
+  _prevState: UpdateDetailsState,
+  formData: FormData,
+): Promise<UpdateDetailsState> {
+  await verifyPanelSession();
+
+  const seasonLabel = String(formData.get("seasonLabel") ?? "").trim();
+  const title = String(formData.get("title") ?? "").trim();
+  const subtitle = String(formData.get("subtitle") ?? "").trim();
+  const location = String(formData.get("location") ?? "").trim();
+  const startTime = String(formData.get("startTime") ?? "").trim();
+
+  if (!title || !subtitle || !location || !startTime) {
+    return { error: "Vul titel, subtitel, locatie en starttijd in." };
+  }
+
+  await updateSeasonDetails({
+    seasonLabel: seasonLabel || "Seizoen",
+    title,
+    subtitle,
+    location,
+    startTime,
+  });
+
+  return { success: true };
+}
 
 function parseLines(raw: string): string[] {
   return raw

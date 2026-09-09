@@ -5,6 +5,7 @@ import { verifyPanelSession } from "@/app/lib/panel-session";
 import { getSeason } from "@/app/lib/schedule";
 
 import GeneratorForm from "./GeneratorForm";
+import QuickEditForm from "./QuickEditForm";
 
 export const metadata: Metadata = {
   title: "Beheerpaneel",
@@ -26,7 +27,7 @@ export default async function PanelPage() {
       <div className="mx-auto max-w-2xl">
         <div className="mb-6 flex items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-black text-[#1d1d1b]">Nieuw seizoen genereren</h1>
+            <h1 className="text-2xl font-black text-[#1d1d1b]">Beheerpaneel</h1>
             <p className="text-sm text-[#6b6b6b]">Huidig actief seizoen: {season.title}</p>
           </div>
           <form action={logout}>
@@ -39,6 +40,15 @@ export default async function PanelPage() {
           </form>
         </div>
 
+        <QuickEditForm
+          defaultSeasonLabel={season.seasonLabel}
+          defaultTitle={season.title}
+          defaultSubtitle={season.subtitle}
+          defaultLocation={season.location}
+          defaultStartTime={season.startTime}
+        />
+
+        <h2 className="mb-3 text-lg font-black text-[#1d1d1b]">Nieuw seizoen genereren</h2>
         <GeneratorForm
           defaultSeasonLabel={season.seasonLabel}
           defaultTitle={season.title}

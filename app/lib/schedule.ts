@@ -72,7 +72,7 @@ function getIsoWeek(date: Date): number {
 function buildDefaultSeason(): SeasonConfig {
   return {
     id: "blaashal-2026-2027",
-    seasonLabel: "Winter competitie",
+    seasonLabel: "Winter tennis",
     title: "Blaashal 2026/2027",
     subtitle: "donderdag 21:00 · baan 5",
     location: "Baan 5, T.C. Domstad",
@@ -180,17 +180,32 @@ export async function getStatusMap(): Promise<Record<string, Status>> {
   return state;
 }
 
-export async function saveSeason(season: SeasonConfig, statusState: Record<string, Status>): Promise<void> {
+async function saveSeasonOnly(season: SeasonConfig): Promise<void> {
   const redis = await getRedisClient();
 
   if (redis) {
     await redis.set(SEASON_KEY, season);
-    await redis.set(STATUS_KEY, statusState);
     return;
   }
 
   globalState.__domstadSeason = season;
-  globalState.__domstadAvailability = statusState;
+}
+
+export async function saveSeason(season: SeasonConfig, statusState: Record<string, Status>): Promise<void> {
+  await saveSeasonOnly(season);
+  await persistState(statusState);
+}
+
+// Patches only the descriptive fields (title, subtitle, location, ...) of the
+// active season without touching its days/players or anyone's current
+// availability — used by the "quick edit" panel form.
+export async function updateSeasonDetails(
+  patch: Partial<Pick<SeasonConfig, "seasonLabel" | "title" | "subtitle" | "location" | "startTime">>,
+): Promise<SeasonConfig> {
+  const season = await getSeason();
+  const updated: SeasonConfig = { ...season, ...patch };
+  await saveSeasonOnly(updated);
+  return updated;
 }
 
 export async function updatePlayerStatus(date: string, player: string, status: Status): Promise<Status> {

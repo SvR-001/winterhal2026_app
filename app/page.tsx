@@ -32,7 +32,7 @@ const DEFAULT_META: SeasonMeta = {
   players: ["Sjoerd", "Sebas", "Robert", "Danny", "Jelmer", "Michel", "Wouter"],
   joker: "Wouter",
   playersPerDay: 4,
-  seasonLabel: "Winter competitie",
+  seasonLabel: "Winter tennis",
   title: "Blaashal 2026/2027",
   subtitle: "donderdag 21:00 · baan 5",
   location: "Baan 5, T.C. Domstad",
@@ -102,6 +102,17 @@ function WhatsAppIcon({ className }: { className?: string }) {
 
 function openWhatsAppShare(message: string) {
   window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
+}
+
+function buildMentionLine(players: PlayerStatus[], excludeName?: string) {
+  const notPlaying = players.filter((player) => player.name !== excludeName && player.status !== "playing");
+
+  if (notPlaying.length === 0) {
+    return "";
+  }
+
+  const mentions = notPlaying.map((player) => `@${player.name}`).join(", ");
+  return ` ${mentions}, kan een van jullie?`;
 }
 
 function TableExportIcon({ className }: { className?: string }) {
@@ -395,9 +406,10 @@ export default function HomePage() {
     const greenCount = day.players.filter((player) => player.status === "playing").length;
     const needed = Math.max(0, meta.playersPerDay - greenCount);
     const boardUrl = window.location.origin;
+    const mentionLine = buildMentionLine(day.players);
 
     openWhatsAppShare(
-      `⚠️ ${meta.title}: ${formatDateLabel(day.date)} is nog niet compleet (${greenCount}/${meta.playersPerDay} — nog ${needed} nodig). Wie kan?\n${boardUrl}`,
+      `⚠️ ${meta.title}: ${formatDateLabel(day.date)} is nog niet compleet (${greenCount}/${meta.playersPerDay} — nog ${needed} nodig).${mentionLine}\n${boardUrl}`,
     );
   };
 
@@ -457,8 +469,9 @@ export default function HomePage() {
 
         if (sendMessage) {
           const boardUrl = window.location.origin;
+          const mentionLine = buildMentionLine(day.players, player.name);
           openWhatsAppShare(
-            `📋 ${meta.title}: ${player.name} kan niet op ${formatDateLabel(day.date)} (${remaining}/${meta.playersPerDay} — nog ${needed} nodig). Wie kan invallen?\n${boardUrl}`,
+            `📋 ${meta.title}: ${player.name} kan niet op ${formatDateLabel(day.date)} (${remaining}/${meta.playersPerDay} — nog ${needed} nodig).${mentionLine}\n${boardUrl}`,
           );
         }
       });
