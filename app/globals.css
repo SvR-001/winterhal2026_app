@@ -41,3 +41,51 @@ button {
 ::selection {
   background: rgba(200, 16, 46, 0.12);
 }
+
+@keyframes logo-wiggle {
+  0%, 100% { transform: rotate(0deg) scale(1); }
+  25% { transform: rotate(-8deg) scale(1.08); }
+  50% { transform: rotate(6deg) scale(1.08); }
+  75% { transform: rotate(-3deg) scale(1.04); }
+}
+
+@keyframes fact-pop {
+  from { opacity: 0; transform: translateY(12px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: 0.25; transform: scale(0.6); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+
+@keyframes firework-burst {
+  0% { opacity: 0; transform: scale(0.3); }
+  30% { opacity: 1; transform: scale(1.1); }
+  100% { opacity: 0; transform: scale(1.6); }
+}
+
+.animate-logo-wiggle {
+  animation: logo-wiggle 0.5s ease-in-out;
+}
+
+.animate-fact-pop {
+  animation: fact-pop 0.25s ease-out both;
+}
+
+.animate-twinkle {
+  animation: twinkle 1.8s ease-in-out infinite;
+}
+
+.animate-firework {
+  animation: firework-burst 1.6s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-logo-wiggle,
+  .animate-fact-pop,
+  .animate-twinkle,
+  .animate-firework {
+    animation: none;
+  }
+}

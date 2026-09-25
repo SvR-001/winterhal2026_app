@@ -117,6 +117,148 @@ function buildMentionLine(players: PlayerStatus[], excludeName?: string) {
   return ` ${mentions}, kan een van jullie?`;
 }
 
+// Easter egg: tapping the club logo shows a made-up "fact" about a random player.
+const NONSENSE_FACTS = [
+  "{name} heeft ooit een tennisbal zo hard geslagen dat hij nu in een baan om de aarde draait.",
+  "{name} slaapt elke nacht met een racket onder het kussen, voor de zekerheid.",
+  "{name} kan een lob slaan over de Domtoren, maar alleen op dinsdag.",
+  "{name} heeft de tiebreak uitgevonden, maar was te bescheiden om het te claimen.",
+  "{name} telt schapen in games: 15, 30, 40, game.",
+  "{name} heeft ooit een wedstrijd gewonnen zonder één bal te raken. De tegenstander gaf op van bewondering.",
+  "{name} ruikt aan nieuwe tennisballen zoals anderen aan wijn.",
+  "{name} noemt de blaashal stiekem 'de grote ballon' en zwaait er elke keer naar.",
+  "{name} heeft een geheime smash die alleen werkt bij volle maan.",
+  "{name} spreekt vloeiend Netpaals, de taal van de netpalen.",
+  "Het eerste woordje van {name} werd gezegd tijdens een let: \"Overnieuw!\"",
+  "{name} bewaart alle gebroken snaren in een schoenendoos met de naam 'herinneringen'.",
+  "{name} warmt zich op door drie keer rond de baan te moonwalken.",
+  "{name} is ooit door een bal geraakt en de bal heeft sorry gezegd.",
+  "{name} heeft een uitgebreide mening over welk geluid een perfecte volley maakt.",
+  "{name} droomt elke woensdagnacht al over donderdagavond.",
+  "{name} heeft eens een ace geslagen die zo snel was dat de scheidsrechter hem pas vrijdag zag.",
+  "{name} gelooft heilig dat de derde helft de belangrijkste set is.",
+  "{name} doet elke wissel een kleine buiging naar het publiek, ook als er geen publiek is.",
+  "{name} heeft een racket met een eigen naam: Gerrit.",
+];
+
+function pickNonsenseFact(players: string[], previous: string | null) {
+  if (players.length === 0) {
+    return null;
+  }
+
+  // Avoid showing the exact same fact twice in a row.
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const name = players[Math.floor(Math.random() * players.length)];
+    const template = NONSENSE_FACTS[Math.floor(Math.random() * NONSENSE_FACTS.length)];
+    const fact = template.replace("{name}", name);
+    if (fact !== previous) {
+      return fact;
+    }
+  }
+
+  return previous;
+}
+
+type SeasonalTheme = "sinterklaas" | "kerst" | "vuurwerk";
+
+// Easter egg: decorate the match day closest before Sinterklaas and Christmas, and
+// the first match day of the new year. Derived from the schedule so it keeps working
+// for any season the panel generates.
+function getSeasonalThemes(schedule: ScheduleDay[]) {
+  const themes = new Map<string, SeasonalTheme>();
+  const dates = schedule.map((day) => day.date).sort();
+  if (dates.length === 0) {
+    return themes;
+  }
+
+  const startYear = Number(dates[0].slice(0, 4));
+  const lastOnOrBefore = (limit: string) => dates.filter((date) => date <= limit).at(-1);
+
+  const sinterklaasDate = lastOnOrBefore(`${startYear}-12-05`);
+  const kerstDate = lastOnOrBefore(`${startYear}-12-25`);
+  const newYearDate = dates.find((date) => date >= `${startYear + 1}-01-01`);
+
+  if (sinterklaasDate && sinterklaasDate >= `${startYear}-11-28`) {
+    themes.set(sinterklaasDate, "sinterklaas");
+  }
+  if (kerstDate && kerstDate >= `${startYear}-12-06` && !themes.has(kerstDate)) {
+    themes.set(kerstDate, "kerst");
+  }
+  if (newYearDate) {
+    themes.set(newYearDate, "vuurwerk");
+  }
+
+  return themes;
+}
+
+const PEPERNOTEN_POSITIONS = [
+  { left: "8%", top: "70%", size: 7, rotate: 10 },
+  { left: "24%", top: "82%", size: 6, rotate: -20 },
+  { left: "41%", top: "68%", size: 8, rotate: 35 },
+  { left: "55%", top: "84%", size: 6, rotate: 0 },
+  { left: "63%", top: "60%", size: 7, rotate: -15 },
+  { left: "74%", top: "80%", size: 8, rotate: 25 },
+  { left: "86%", top: "66%", size: 6, rotate: -30 },
+  { left: "93%", top: "85%", size: 7, rotate: 5 },
+];
+
+const FIREWORK_SPARKS = [
+  { right: "2.4rem", top: "55%", color: "#facc15", delay: "0s" },
+  { right: "0.6rem", top: "40%", color: "#f472b6", delay: "0.5s" },
+  { right: "3.6rem", top: "75%", color: "#60a5fa", delay: "1s" },
+  { right: "1.4rem", top: "85%", color: "#34d399", delay: "0.8s" },
+];
+
+function SeasonalDecoration({ theme }: { theme: SeasonalTheme }) {
+  if (theme === "sinterklaas") {
+    return (
+      <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+        {PEPERNOTEN_POSITIONS.map((nut, index) => (
+          <span
+            key={index}
+            className="absolute rounded-full bg-[#c98a4b] shadow-[inset_-1px_-1px_0_rgba(0,0,0,0.25)]"
+            style={{
+              left: nut.left,
+              top: nut.top,
+              width: nut.size,
+              height: nut.size - 1,
+              transform: `rotate(${nut.rotate}deg)`,
+            }}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  if (theme === "kerst") {
+    return (
+      <div className="pointer-events-none absolute bottom-1 right-3 flex items-end" aria-hidden="true">
+        <span className="animate-twinkle mb-5 mr-0.5 text-[10px] text-yellow-300">✦</span>
+        <span className="text-2xl leading-none">🎄</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+      <span className="absolute bottom-1 right-3 text-2xl leading-none">🎆</span>
+      {FIREWORK_SPARKS.map((spark, index) => (
+        <span
+          key={index}
+          className="animate-firework absolute h-1.5 w-1.5 rounded-full"
+          style={{
+            right: spark.right,
+            top: spark.top,
+            backgroundColor: spark.color,
+            boxShadow: `0 0 6px ${spark.color}`,
+            animationDelay: spark.delay,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 function TableExportIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -319,6 +461,22 @@ export default function HomePage() {
   const [schedule, setSchedule] = useState<ScheduleDay[]>([]);
   const [meta, setMeta] = useState<SeasonMeta>(DEFAULT_META);
   const [isLoading, setIsLoading] = useState(true);
+  const [nonsenseFact, setNonsenseFact] = useState<string | null>(null);
+  const [logoWiggleKey, setLogoWiggleKey] = useState(0);
+
+  useEffect(() => {
+    if (!nonsenseFact) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => setNonsenseFact(null), 7000);
+    return () => window.clearTimeout(timeout);
+  }, [nonsenseFact]);
+
+  const handleLogoClick = () => {
+    setNonsenseFact((previous) => pickNonsenseFact(meta.players, previous));
+    setLogoWiggleKey((key) => key + 1);
+  };
 
   const getSchedule = useCallback(async () => {
     try {
@@ -396,6 +554,8 @@ export default function HomePage() {
 
     return counts;
   }, [schedule, meta.players, meta.joker]);
+
+  const seasonalThemes = useMemo(() => getSeasonalThemes(schedule), [schedule]);
 
   const handleJumpToDay = (date: string) => {
     const element = document.getElementById(date);
@@ -502,8 +662,15 @@ export default function HomePage() {
       <div className="mx-auto max-w-6xl px-4 py-5 sm:px-6 lg:px-8">
         <header className="mb-5 overflow-hidden rounded-2xl border border-[#1d1d1b] bg-[#1d1d1b] shadow-[0_10px_20px_rgba(17,17,17,0.15)]">
           <div className="flex items-center gap-4 p-4">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/domstad-logo.svg" alt="T.C. Domstad" className="h-9 w-auto shrink-0 sm:h-11" />
+            <button type="button" onClick={handleLogoClick} className="shrink-0 cursor-default" aria-label="T.C. Domstad">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                key={logoWiggleKey}
+                src="/domstad-logo.svg"
+                alt="T.C. Domstad"
+                className={`h-9 w-auto sm:h-11 ${logoWiggleKey > 0 ? "animate-logo-wiggle" : ""}`}
+              />
+            </button>
             <div className="min-w-0">
               {isLoading ? (
                 <div className="animate-pulse space-y-2 py-1">
@@ -658,6 +825,7 @@ export default function HomePage() {
               const statusText = complete
                 ? `${meta.playersPerDay}/${meta.playersPerDay} compleet`
                 : `${greenCount}/${meta.playersPerDay} — nog ${needed} nodig`;
+              const seasonalTheme = seasonalThemes.get(day.date);
 
               return (
                 <article
@@ -665,8 +833,9 @@ export default function HomePage() {
                   key={day.date}
                   className="overflow-hidden rounded-2xl border border-[#1d1d1b]/15 bg-white shadow-sm transition hover:shadow-md"
                 >
-                  <div className="bg-[#1d1d1b] px-4 py-3">
-                    <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+                  <div className="relative bg-[#1d1d1b] px-4 py-3">
+                    {seasonalTheme && <SeasonalDecoration theme={seasonalTheme} />}
+                    <div className="relative flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
                       <div className="min-w-0">
                         <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#e40520]">
                           Week {day.weekNumber}
@@ -695,6 +864,30 @@ export default function HomePage() {
           </div>
         )}
       </div>
+
+      {nonsenseFact && (
+        <div
+          key={nonsenseFact}
+          role="status"
+          className="animate-fact-pop fixed bottom-4 left-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-2xl border border-[#e40520]/40 bg-[#1d1d1b] px-4 py-3 text-white shadow-[0_12px_30px_rgba(0,0,0,0.3)]"
+        >
+          <div className="flex items-start gap-3">
+            <span className="text-xl leading-none" aria-hidden="true">🤫</span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#e40520]">Wist je dat…</p>
+              <p className="mt-1 text-sm leading-snug text-white/90">{nonsenseFact}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setNonsenseFact(null)}
+              className="shrink-0 text-white/50 transition hover:text-white"
+              aria-label="Sluiten"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
