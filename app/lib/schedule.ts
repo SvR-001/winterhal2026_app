@@ -219,34 +219,14 @@ export async function updatePlayerStatus(date: string, player: string, status: S
     throw new Error("Player is not part of the current season");
   }
 
+  // Anyone who explicitly signs off is flagged red and stays red until they
+  // mark themselves available again — regardless of how many others did too.
   const state = await getStatusMap();
-  const countPlaying = () =>
-    season.players.filter((teammate) => state[`${date}|${teammate}`] === "playing").length;
-
-  let resolvedStatus = status;
-
-  if (status === "problem") {
-    // Only the player whose toggle drops the day from complete to
-    // incomplete is flagged red; toggling off an already-incomplete day
-    // just clears back to idle.
-    const wasComplete = countPlaying() >= season.playersPerDay;
-    resolvedStatus = wasComplete ? "problem" : "idle";
-  }
-
-  state[`${date}|${player}`] = resolvedStatus;
-
-  if (resolvedStatus === "playing" && countPlaying() >= season.playersPerDay) {
-    for (const teammate of season.players) {
-      const key = `${date}|${teammate}`;
-      if (state[key] === "problem") {
-        state[key] = "idle";
-      }
-    }
-  }
+  state[`${date}|${player}`] = status;
 
   await persistState(state);
 
-  return resolvedStatus;
+  return status;
 }
 
 export async function getScheduleOverview(): Promise<{ season: SeasonConfig; days: ScheduleDay[] }> {
