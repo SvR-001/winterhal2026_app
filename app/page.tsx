@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { APP_VERSION } from "@/app/lib/version";
+
 type Status = "playing" | "problem" | "idle";
 
 type PlayerStatus = {
@@ -661,7 +663,10 @@ export default function HomePage() {
     <main className="min-h-screen bg-[#f5f3ef] text-[#1b1b1b]">
       <div className="mx-auto max-w-6xl px-4 py-5 sm:px-6 lg:px-8">
         <header className="mb-5 overflow-hidden rounded-2xl border border-[#1d1d1b] bg-[#1d1d1b] shadow-[0_10px_20px_rgba(17,17,17,0.15)]">
-          <div className="flex items-center gap-4 p-4">
+          <div className="relative flex items-center gap-4 p-4">
+            <span className="absolute right-3 top-2 text-[0.65rem] font-medium tabular-nums text-[#6b6b68]">
+              v{APP_VERSION}
+            </span>
             <button type="button" onClick={handleLogoClick} className="shrink-0 cursor-default" aria-label="T.C. Domstad">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
