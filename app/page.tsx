@@ -466,6 +466,7 @@ export default function HomePage() {
   const [nonsenseFact, setNonsenseFact] = useState<string | null>(null);
   const [logoWiggleKey, setLogoWiggleKey] = useState(0);
   const [showPastDays, setShowPastDays] = useState(false);
+  const [showPlayerCounts, setShowPlayerCounts] = useState(false);
 
   useEffect(() => {
     if (!nonsenseFact) {
@@ -820,31 +821,44 @@ export default function HomePage() {
           )}
 
           <div className="border-t border-[#ece3da] pt-3">
-            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#6b6b6b]">
-              Speeldagen per speler
-            </div>
-            <div className="grid gap-1.5 sm:grid-cols-2">
-              {playerDayCounts.map(({ name, count }) => (
-                <div
-                  key={name}
-                  className="flex items-center justify-between gap-2 rounded-xl border border-[#ece3da] bg-[#faf7f2] px-3 py-2"
-                >
-                  <div className="flex min-w-0 items-baseline gap-2">
-                    <span className="truncate text-sm font-semibold text-[#1d1d1b]">{name}</span>
-                    <span className="whitespace-nowrap text-xs text-[#8a8a8a]">{count} speeldagen</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleExportAgenda(name)}
-                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#1d1d1b] bg-white text-[#1d1d1b] transition hover:bg-[#1d1d1b] hover:text-white"
-                    aria-label={`Exporteer agenda voor ${name}`}
-                    title="Exporteer naar agenda"
+            <button
+              type="button"
+              onClick={() => setShowPlayerCounts((shown) => !shown)}
+              aria-expanded={showPlayerCounts}
+              className="flex w-full items-center justify-between gap-2 text-xs font-semibold uppercase tracking-wide text-[#6b6b6b]"
+            >
+              <span>Speeldagen per speler</span>
+              <span
+                aria-hidden="true"
+                className={`text-[0.65rem] transition-transform ${showPlayerCounts ? "rotate-180" : ""}`}
+              >
+                ▼
+              </span>
+            </button>
+            {showPlayerCounts && (
+              <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
+                {playerDayCounts.map(({ name, count }) => (
+                  <div
+                    key={name}
+                    className="flex items-center justify-between gap-2 rounded-xl border border-[#ece3da] bg-[#faf7f2] px-3 py-2"
                   >
-                    <CalendarExportIcon className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ))}
-            </div>
+                    <div className="flex min-w-0 items-baseline gap-2">
+                      <span className="truncate text-sm font-semibold text-[#1d1d1b]">{name}</span>
+                      <span className="whitespace-nowrap text-xs text-[#8a8a8a]">{count} speeldagen</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleExportAgenda(name)}
+                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#1d1d1b] bg-white text-[#1d1d1b] transition hover:bg-[#1d1d1b] hover:text-white"
+                      aria-label={`Exporteer agenda voor ${name}`}
+                      title="Exporteer naar agenda"
+                    >
+                      <CalendarExportIcon className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <button
               type="button"
