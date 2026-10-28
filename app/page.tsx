@@ -465,6 +465,7 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [nonsenseFact, setNonsenseFact] = useState<string | null>(null);
   const [logoWiggleKey, setLogoWiggleKey] = useState(0);
+  const [showPastDays, setShowPastDays] = useState(false);
 
   useEffect(() => {
     if (!nonsenseFact) {
@@ -528,14 +529,15 @@ export default function HomePage() {
 
   // Every day lands in exactly one bucket: played (before today), or upcoming
   // and complete/incomplete. Today still counts as upcoming.
-  const { playedDays, completeDays, incompleteDays } = useMemo(() => {
+  const { pastDays, upcomingDays, completeDays, incompleteDays } = useMemo(() => {
     const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Amsterdam" }).format(new Date());
     const upcoming = schedule.filter((day) => day.date >= today);
     const isComplete = (day: ScheduleDay) =>
       day.players.filter((player) => player.status === "playing").length >= meta.playersPerDay;
 
     return {
-      playedDays: schedule.length - upcoming.length,
+      pastDays: schedule.filter((day) => day.date < today),
+      upcomingDays: upcoming,
       completeDays: upcoming.filter(isComplete).length,
       incompleteDays: upcoming.filter((day) => !isComplete(day)),
     };
@@ -594,6 +596,50 @@ export default function HomePage() {
 
   const handleExportExcel = () => {
     void buildAndDownloadScheduleExcel(schedule, meta);
+  };
+
+  const renderDayCard = (day: ScheduleDay) => {
+    const greenCount = day.players.filter((player) => player.status === "playing").length;
+    const complete = greenCount >= meta.playersPerDay;
+    const needed = Math.max(0, meta.playersPerDay - greenCount);
+    const statusText = complete
+      ? `${meta.playersPerDay}/${meta.playersPerDay} compleet`
+      : `${greenCount}/${meta.playersPerDay} — nog ${needed} nodig`;
+    const seasonalTheme = seasonalThemes.get(day.date);
+
+    return (
+      <article
+        id={day.date}
+        key={day.date}
+        className="overflow-hidden rounded-2xl border border-[#1d1d1b]/15 bg-white shadow-sm transition hover:shadow-md"
+      >
+        <div className="relative bg-[#1d1d1b] px-4 py-3">
+          {seasonalTheme && <SeasonalDecoration theme={seasonalTheme} />}
+          <div className="relative flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#e40520]">
+                Week {day.weekNumber}
+              </p>
+              <h2 className="mt-1 text-xl font-bold text-white">{formatDateLabel(day.date)}</h2>
+            </div>
+            <div
+              className={`inline-flex shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-bold ${
+                complete
+                  ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-300"
+                  : "border-red-400/40 bg-red-400/10 text-red-300"
+              }`}
+            >
+              {statusText}
+            </div>
+          </div>
+        </div>
+        <div className="h-1 w-full bg-[#e40520]" />
+
+        <div className="grid gap-2 p-4">
+          {day.players.map((player) => renderPlayer(day, player))}
+        </div>
+      </article>
+    );
   };
 
   const renderPlayer = (day: ScheduleDay, player: PlayerStatus) => {
@@ -708,7 +754,7 @@ export default function HomePage() {
 
           <div className="mb-3 grid grid-cols-3 gap-2 sm:gap-3">
             <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 sm:px-4">
-              <div className="text-2xl font-black text-slate-500">{playedDays}</div>
+              <div className="text-2xl font-black text-slate-500">{pastDays.length}</div>
               <div className="text-[0.68rem] font-semibold uppercase text-slate-500 sm:text-xs sm:tracking-wide">
                 Gespeeld
               </div>
@@ -830,51 +876,34 @@ export default function HomePage() {
             Geen data beschikbaar
           </div>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {schedule.map((day) => {
-              const greenCount = day.players.filter((player) => player.status === "playing").length;
-              const complete = greenCount >= meta.playersPerDay;
-              const needed = Math.max(0, meta.playersPerDay - greenCount);
-              const statusText = complete
-                ? `${meta.playersPerDay}/${meta.playersPerDay} compleet`
-                : `${greenCount}/${meta.playersPerDay} — nog ${needed} nodig`;
-              const seasonalTheme = seasonalThemes.get(day.date);
-
-              return (
-                <article
-                  id={day.date}
-                  key={day.date}
-                  className="overflow-hidden rounded-2xl border border-[#1d1d1b]/15 bg-white shadow-sm transition hover:shadow-md"
+          <>
+            {pastDays.length > 0 && (
+              <div className="mb-4">
+                <button
+                  type="button"
+                  onClick={() => setShowPastDays((shown) => !shown)}
+                  aria-expanded={showPastDays}
+                  className="inline-flex w-full items-center justify-between gap-2 rounded-2xl border border-[#e6ddd4] bg-white px-4 py-3 text-sm font-semibold text-[#4a4a4a] shadow-sm transition hover:bg-[#faf7f2]"
                 >
-                  <div className="relative bg-[#1d1d1b] px-4 py-3">
-                    {seasonalTheme && <SeasonalDecoration theme={seasonalTheme} />}
-                    <div className="relative flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
-                      <div className="min-w-0">
-                        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#e40520]">
-                          Week {day.weekNumber}
-                        </p>
-                        <h2 className="mt-1 text-xl font-bold text-white">{formatDateLabel(day.date)}</h2>
-                      </div>
-                      <div
-                        className={`inline-flex shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-bold ${
-                          complete
-                            ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-300"
-                            : "border-red-400/40 bg-red-400/10 text-red-300"
-                        }`}
-                      >
-                        {statusText}
-                      </div>
-                    </div>
+                  <span>
+                    {showPastDays ? "Verberg" : "Toon"} gespeelde speeldagen ({pastDays.length})
+                  </span>
+                  <span
+                    aria-hidden="true"
+                    className={`text-xs transition-transform ${showPastDays ? "rotate-180" : ""}`}
+                  >
+                    ▼
+                  </span>
+                </button>
+                {showPastDays && (
+                  <div className="mt-4 grid gap-4 opacity-75 md:grid-cols-2 xl:grid-cols-3">
+                    {pastDays.map(renderDayCard)}
                   </div>
-                  <div className="h-1 w-full bg-[#e40520]" />
-
-                  <div className="grid gap-2 p-4">
-                    {day.players.map((player) => renderPlayer(day, player))}
-                  </div>
-                </article>
-              );
-            })}
-          </div>
+                )}
+              </div>
+            )}
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{upcomingDays.map(renderDayCard)}</div>
+          </>
         )}
       </div>
 
