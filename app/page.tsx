@@ -533,11 +533,15 @@ export default function HomePage() {
     [schedule, meta.playersPerDay],
   );
 
-  const incompleteDays = useMemo(
-    () =>
-      schedule.filter((day) => day.players.filter((player) => player.status === "playing").length < meta.playersPerDay),
-    [schedule, meta.playersPerDay],
-  );
+  // Days that have already been played need no action anymore; today still counts.
+  const incompleteDays = useMemo(() => {
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Amsterdam" }).format(new Date());
+    return schedule.filter(
+      (day) =>
+        day.date >= today &&
+        day.players.filter((player) => player.status === "playing").length < meta.playersPerDay,
+    );
+  }, [schedule, meta.playersPerDay]);
 
   const playerDayCounts = useMemo(() => {
     const countFor = (name: string) =>
