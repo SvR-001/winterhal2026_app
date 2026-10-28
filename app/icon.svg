@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <clipPath id="ball">
+      <circle cx="32" cy="32" r="23"/>
+    </clipPath>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#1d1d1b"/>
+  <circle cx="32" cy="32" r="23" fill="#ffffff"/>
+  <g clip-path="url(#ball)">
+    <g transform="rotate(-35 32 32)" fill="none" stroke="#e40520" stroke-width="4">
+      <path d="M15 6 C34 19 34 45 15 58"/>
+      <path d="M49 6 C30 19 30 45 49 58"/>
+    </g>
+  </g>
+</svg>
