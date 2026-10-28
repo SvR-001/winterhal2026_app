@@ -526,21 +526,19 @@ export default function HomePage() {
     await getSchedule();
   };
 
-  const completeDays = useMemo(
-    () =>
-      schedule.filter((day) => day.players.filter((player) => player.status === "playing").length >= meta.playersPerDay)
-        .length,
-    [schedule, meta.playersPerDay],
-  );
-
-  // Days that have already been played need no action anymore; today still counts.
-  const incompleteDays = useMemo(() => {
+  // Every day lands in exactly one bucket: played (before today), or upcoming
+  // and complete/incomplete. Today still counts as upcoming.
+  const { playedDays, completeDays, incompleteDays } = useMemo(() => {
     const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Amsterdam" }).format(new Date());
-    return schedule.filter(
-      (day) =>
-        day.date >= today &&
-        day.players.filter((player) => player.status === "playing").length < meta.playersPerDay,
-    );
+    const upcoming = schedule.filter((day) => day.date >= today);
+    const isComplete = (day: ScheduleDay) =>
+      day.players.filter((player) => player.status === "playing").length >= meta.playersPerDay;
+
+    return {
+      playedDays: schedule.length - upcoming.length,
+      completeDays: upcoming.filter(isComplete).length,
+      incompleteDays: upcoming.filter((day) => !isComplete(day)),
+    };
   }, [schedule, meta.playersPerDay]);
 
   const playerDayCounts = useMemo(() => {
@@ -708,15 +706,21 @@ export default function HomePage() {
         >
           <div className="mb-3 text-sm font-semibold uppercase tracking-[0.14em] text-[#6b6b6b]">Status</div>
 
-          <div className="mb-3 grid grid-cols-2 gap-3">
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+          <div className="mb-3 grid grid-cols-3 gap-2 sm:gap-3">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 sm:px-4">
+              <div className="text-2xl font-black text-slate-500">{playedDays}</div>
+              <div className="text-[0.68rem] font-semibold uppercase text-slate-500 sm:text-xs sm:tracking-wide">
+                Gespeeld
+              </div>
+            </div>
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3 sm:px-4">
               <div className="text-2xl font-black text-emerald-700">{completeDays}</div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-emerald-700/80">
+              <div className="text-[0.68rem] font-semibold uppercase text-emerald-700/80 sm:text-xs sm:tracking-wide">
                 Compleet
               </div>
             </div>
             <div
-              className={`rounded-xl border px-4 py-3 ${
+              className={`rounded-xl border px-3 py-3 sm:px-4 ${
                 incompleteDays.length > 0
                   ? "border-red-400 bg-red-100"
                   : "border-slate-200 bg-slate-50"
@@ -730,7 +734,7 @@ export default function HomePage() {
                 {incompleteDays.length}
               </div>
               <div
-                className={`text-xs font-semibold uppercase tracking-wide ${
+                className={`text-[0.68rem] font-semibold uppercase sm:text-xs sm:tracking-wide ${
                   incompleteDays.length > 0 ? "text-red-700/80" : "text-slate-500"
                 }`}
               >
